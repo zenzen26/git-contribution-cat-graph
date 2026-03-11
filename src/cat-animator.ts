@@ -2,39 +2,259 @@ import { ContributionGraph, ContributionDay } from "./contribution-graph";
 
 export type Theme = "github" | "github-dark";
 
-// Cell size — big enough to see emoji clearly
-const CELL  = 14;
-const GAP   = 3;
-const STEP  = CELL + GAP;  // 17px per grid step
-const TOP   = 36;
-const LEFT  = 44;
-const ROWS  = 7;
+const CELL = 14;
+const GAP  = 3;
+const STEP = CELL + GAP;
+const TOP  = 36;
+const LEFT = 44;
+const ROWS = 7;
 
 const LIGHT_COLORS = ["#ebedf0","#9be9a8","#40c463","#30a14e","#216e39"];
 const DARK_COLORS  = ["#161b22","#0e4429","#006d32","#26a641","#39d353"];
 
-interface CellData {
+// ms per cell step
+const CAT_MS   = 300;
+const RAT_MS   = 400;
+const WEARY_MS = 800;
+// total animation duration in ms before looping
+const TOTAL_MS = 30000;
+
+interface Cell {
   col: number;
   row: number;
-  x: number;
-  y: number;
+  px: number;  // pixel x of cell top-left
+  py: number;  // pixel y of cell top-left
+  cx: number;  // center x (emoji anchor)
+  cy: number;  // center y (emoji anchor)
   level: number;
   date: string;
 }
 
-// Draw a fish shape as inline SVG, centered at (cx, cy), sized to fit CELL×CELL
-function drawFish(cx: number, cy: number, color: string, id: string): string {
-  const r  = CELL * 0.42;   // body half-width
-  const ry = CELL * 0.28;   // body half-height
-  const tx = cx - r;        // tail tip x
-  return `<g id="${id}">
+// ── Simulation helpers ────────────────────────────────────────────────────────
+
+function buildGrid(cells: Cell[]): Map<string, Cell> {
+  const g = new Map<string, Cell>();
+  for (const c of cells) g.set(`${c.col},${c.row}`, c);
+  return g;
+}
+
+function adj(grid: Map<string, Cell>, col: number, row: number): Cell[] {
+  return [[0,-1],[0,1],[-1,0],[1,0]]
+    .map(([dc,dr]) => grid.get(`${col+dc},${row+dr}`))
+    .filter((c): c is Cell => c !== undefined);
+}
+
+function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ── Pre-simulate cat walk ─────────────────────────────────────────────────────
+// Returns sequence of {col, row, t} steps and which fish get eaten at what time
+
+interface Step { col: number; row: number; t: number; }
+interface EatEvent { date: string; t: number; }
+interface WearyEvent { start: number; end: number; }
+
+function simulateCat(
+  grid: Map<string, Cell>,
+  fishSet: Set<string>,  // mutable — dates of remaining fish
+  startCol: number,
+  startRow: number,
+  maxMs: number
+): { steps: Step[]; eats: EatEvent[] } {
+  const steps: Step[] = [];
+  const eats: EatEvent[] = [];
+  let col = startCol, row = startRow;
+  let t = 0;
+  let prevKey = "";
+
+  steps.push({ col, row, t });
+
+  while (t < maxMs) {
+    const options = adj(grid, col, row);
+    if (!options.length) break;
+
+    // prefer forward (no backtrack) and prefer fish cells
+    const noBack = options.filter(c => `${c.col},${c.row}` !== prevKey);
+    const pool = noBack.length ? noBack : options;
+    const withFish = pool.filter(c => fishSet.has(c.date));
+    const target = pick(withFish.length ? withFish : pool);
+
+    prevKey = `${col},${row}`;
+    col = target.col;
+    row = target.row;
+    t += CAT_MS;
+
+    steps.push({ col, row, t });
+
+    if (target.level > 0 && fishSet.has(target.date)) {
+      fishSet.delete(target.date);
+      eats.push({ date: target.date, t });
+    }
+
+    // reset fish if all eaten
+    if (fishSet.size === 0) {
+      // re-add all fish (get from grid)
+      for (const c of grid.values()) {
+        if (c.level > 0) fishSet.add(c.date);
+      }
+    }
+  }
+
+  return { steps, eats };
+}
+
+// ── Pre-simulate rat walk ─────────────────────────────────────────────────────
+
+function simulateRat(
+  grid: Map<string, Cell>,
+  startCol: number,
+  startRow: number,
+  startDelay: number,
+  maxMs: number
+): Step[] {
+  const steps: Step[] = [];
+  let col = startCol, row = startRow;
+  let t = startDelay;
+  let prevKey = "";
+
+  steps.push({ col, row, t: 0 });  // initial position (before animation starts)
+
+  while (t < maxMs) {
+    const options = adj(grid, col, row);
+    if (!options.length) break;
+    const noBack = options.filter(c => `${c.col},${c.row}` !== prevKey);
+    const pool = noBack.length ? noBack : options;
+    const target = pick(pool);
+    prevKey = `${col},${row}`;
+    col = target.col;
+    row = target.row;
+    steps.push({ col, row, t });
+    t += RAT_MS;
+  }
+
+  return steps;
+}
+
+// ── Detect weary events (when rat overlaps cat) ───────────────────────────────
+
+function detectWeary(
+  catSteps: Step[],
+  rat0Steps: Step[],
+  rat1Steps: Step[]
+): WearyEvent[] {
+  const events: WearyEvent[] = [];
+
+  // Build a timeline map for rats: t -> {col, row}
+  function posAt(steps: Step[], t: number): { col: number; row: number } {
+    let last = steps[0];
+    for (const s of steps) {
+      if (s.t <= t) last = s;
+      else break;
+    }
+    return last;
+  }
+
+  // Sample every CAT_MS to find collisions
+  for (const catStep of catSteps) {
+    const r0 = posAt(rat0Steps, catStep.t);
+    const r1 = posAt(rat1Steps, catStep.t);
+    if (
+      (r0.col === catStep.col && r0.row === catStep.row) ||
+      (r1.col === catStep.col && r1.row === catStep.row)
+    ) {
+      events.push({ start: catStep.t, end: catStep.t + WEARY_MS });
+    }
+  }
+
+  return events;
+}
+
+// ── SMIL helpers ──────────────────────────────────────────────────────────────
+
+function toSec(ms: number): string { return (ms / 1000).toFixed(3) + "s"; }
+
+// Build SMIL animate for x and y position from a steps array
+// Uses discrete calcMode — jumps instantly to each cell (pac-man style)
+function smilMove(
+  id: string,
+  steps: Step[],
+  totalMs: number,
+  getX: (s: Step) => number,
+  getY: (s: Step) => number
+): string {
+  if (steps.length < 2) return "";
+
+  const dur = toSec(totalMs);
+  const times = steps.map(s => (s.t / totalMs).toFixed(4)).join(";");
+  const xs = steps.map(s => getX(s).toFixed(1)).join(";");
+  const ys = steps.map(s => getY(s).toFixed(1)).join(";");
+
+  return `
+    <animate attributeName="x" calcMode="discrete"
+      dur="${dur}" repeatCount="indefinite"
+      keyTimes="${times}" values="${xs}"/>
+    <animate attributeName="y" calcMode="discrete"
+      dur="${dur}" repeatCount="indefinite"
+      keyTimes="${times}" values="${ys}"/>`;
+}
+
+// SMIL animate for display (fish disappear)
+function smilFishDisappear(eatTime: number, totalMs: number): string {
+  const dur = toSec(totalMs);
+  // Before eat: inline. At eat: none. Then stays none until reset (loop).
+  const t0 = (eatTime / totalMs).toFixed(4);
+  return `
+    <animate attributeName="display" calcMode="discrete"
+      dur="${dur}" repeatCount="indefinite"
+      keyTimes="0;${t0}" values="inline;none"/>`;
+}
+
+// SMIL for cat weary face — show during weary periods, hide otherwise
+function smilWeary(
+  wearyEvents: WearyEvent[],
+  totalMs: number,
+  showId: string,  // cat-normal or cat-weary
+  isWeary: boolean // true = this is the weary element
+): string {
+  if (wearyEvents.length === 0) return "";
+
+  const dur = toSec(totalMs);
+  const times: string[] = ["0"];
+  const vals: string[] = [isWeary ? "none" : "inline"];
+
+  for (const ev of wearyEvents) {
+    const ts = (ev.start / totalMs).toFixed(4);
+    const te = (ev.end   / totalMs).toFixed(4);
+    if (ts !== times[times.length - 1]) {
+      times.push(ts);
+      vals.push(isWeary ? "inline" : "none");
+    }
+    times.push(te);
+    vals.push(isWeary ? "none" : "inline");
+  }
+
+  return `
+    <animate attributeName="display" calcMode="discrete"
+      dur="${dur}" repeatCount="indefinite"
+      keyTimes="${times.join(";")}" values="${vals.join(";")}"/>`;
+}
+
+// ── Fish SVG ──────────────────────────────────────────────────────────────────
+
+function drawFish(cx: number, cy: number, color: string, id: string, eatTime: number | null, totalMs: number): string {
+  const r  = CELL * 0.42;
+  const ry = CELL * 0.28;
+  const tx = cx - r;
+  const disappear = eatTime !== null ? smilFishDisappear(eatTime, totalMs) : "";
+  return `<g id="${id}">${disappear}
     <ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${ry}" fill="${color}"/>
-    <polygon points="${tx},${cy - ry * 0.9} ${tx},${cy + ry * 0.9} ${tx - r * 0.55},${cy}" fill="${color}" opacity="0.85"/>
-    <path d="M${cx - r * 0.3},${cy - ry} Q${cx + r * 0.1},${cy - ry * 1.6} ${cx + r * 0.55},${cy - ry}" fill="${color}" opacity="0.65"/>
-    <circle cx="${cx + r * 0.5}" cy="${cy - ry * 0.2}" r="${r * 0.18}" fill="white"/>
-    <circle cx="${cx + r * 0.55}" cy="${cy - ry * 0.2}" r="${r * 0.09}" fill="#222"/>
+    <polygon points="${tx},${cy - ry*0.9} ${tx},${cy + ry*0.9} ${tx - r*0.55},${cy}" fill="${color}" opacity="0.85"/>
+    <path d="M${cx - r*0.3},${cy - ry} Q${cx + r*0.1},${cy - ry*1.6} ${cx + r*0.55},${cy - ry}" fill="${color}" opacity="0.65"/>
+    <circle cx="${cx + r*0.5}" cy="${cy - ry*0.2}" r="${r*0.18}" fill="white"/>
+    <circle cx="${cx + r*0.55}" cy="${cy - ry*0.2}" r="${r*0.09}" fill="#222"/>
   </g>`;
 }
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export function generateCatSVG(
   graph: ContributionGraph,
@@ -42,7 +262,7 @@ export function generateCatSVG(
   theme: Theme = "github"
 ): string {
   const dark   = theme === "github-dark";
-  const svgId  = dark ? "ccg-dark" : "ccg-light";  // unique prefix per SVG instance
+  const pfx    = dark ? "ccg-dark" : "ccg-light";
   const colors = dark ? DARK_COLORS : LIGHT_COLORS;
   const bg     = dark ? "#0d1117" : "#ffffff";
   const fg     = dark ? "#c9d1d9" : "#24292f";
@@ -54,45 +274,69 @@ export function generateCatSVG(
   const svgW  = LEFT + W * STEP + 20;
   const svgH  = TOP  + ROWS * STEP + 48;
 
-  // ── Build cell list ──────────────────────────────────────────────────────────
-  const cells: CellData[] = [];
-  weeks.forEach((wk: ContributionGraph["weeks"][0], wi: number) => {
-    wk.days.forEach((day: ContributionDay, di: number) => {
+  // Build cells
+  const cells: Cell[] = [];
+  weeks.forEach((wk, wi) => {
+    wk.days.forEach((day, di) => {
+      const px = LEFT + wi * STEP;
+      const py = TOP  + di * STEP;
       cells.push({
         col: wi, row: di,
-        x: LEFT + wi * STEP,
-        y: TOP  + di * STEP,
+        px, py,
+        cx: px + CELL / 2,
+        cy: py + CELL / 2,
         level: day.level,
         date:  day.date,
       });
     });
   });
 
+  const grid = buildGrid(cells);
+
+  // ── Simulate ────────────────────────────────────────────────────────────────
+  const fishSet = new Set<string>(cells.filter(c => c.level > 0).map(c => c.date));
+
+  // cat starts col=0 row=3
+  const catStart = grid.get("0,3") || grid.get("0,0") || cells[0];
+  const { steps: catSteps, eats } = simulateCat(grid, fishSet, catStart.col, catStart.row, TOTAL_MS);
+
+  // Build eat time map: date -> first eat time
+  const eatTimeMap = new Map<string, number>();
+  for (const e of eats) {
+    if (!eatTimeMap.has(e.date)) eatTimeMap.set(e.date, e.t);
+  }
+
+  // rats start at different positions
+  const rat0Start = grid.get(`${Math.floor(W * 0.25)},1`) || cells[Math.floor(cells.length * 0.25)];
+  const rat1Start = grid.get(`${Math.floor(W * 0.70)},5`) || cells[Math.floor(cells.length * 0.70)];
+
+  const rat0Steps = simulateRat(grid, rat0Start.col, rat0Start.row, 500,  TOTAL_MS);
+  const rat1Steps = simulateRat(grid, rat1Start.col, rat1Start.row, 800, TOTAL_MS);
+
+  const wearyEvents = detectWeary(catSteps, rat0Steps, rat1Steps);
+
+  // ── Helper: pixel center of a step ──────────────────────────────────────────
+  const getX = (s: Step) => (grid.get(`${s.col},${s.row}`) ?? cells[0]).cx;
+  const getY = (s: Step) => (grid.get(`${s.col},${s.row}`) ?? cells[0]).cy;
+
   // ── Grid SVG ────────────────────────────────────────────────────────────────
-  // Each active cell: empty rect (background) + fish shape on top
-  // Fish disappear when eaten (JS sets display:none on the fish group)
-  // Empty cells: just the background rect
   const gridSVG = cells.map(cell => {
-    const cx = cell.x + CELL / 2;
-    const cy = cell.y + CELL / 2;
-    const emptyFill = colors[0];
-
     if (cell.level === 0) {
-      return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
-        fill="${emptyFill}" stroke="${border}" stroke-width="0.3"/>`;
+      return `<rect x="${cell.px}" y="${cell.py}" width="${CELL}" height="${CELL}" rx="2"
+        fill="${colors[0]}" stroke="${border}" stroke-width="0.3"/>`;
     }
-
     const fishColor = colors[Math.min(cell.level, colors.length - 1)];
-    return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
-        fill="${emptyFill}" stroke="${border}" stroke-width="0.3"/>
-      ${drawFish(cx, cy, fishColor, `${svgId}-fish-${cell.date}`)}`;
+    const eatTime = eatTimeMap.get(cell.date) ?? null;
+    return `<rect x="${cell.px}" y="${cell.py}" width="${CELL}" height="${CELL}" rx="2"
+        fill="${colors[0]}" stroke="${border}" stroke-width="0.3"/>
+      ${drawFish(cell.cx, cell.cy, fishColor, `${pfx}-fish-${cell.date}`, eatTime, TOTAL_MS)}`;
   }).join("\n");
 
-  // ── Month / day labels ───────────────────────────────────────────────────────
+  // ── Month labels ─────────────────────────────────────────────────────────────
   const monthLabels: string[] = [];
   let lastMonth = -1;
-  weeks.forEach((wk: ContributionGraph["weeks"][0], wi: number) => {
-    const d = wk.days.find((d: ContributionDay) => d.date);
+  weeks.forEach((wk, wi) => {
+    const d = wk.days.find(d => d.date);
     if (!d) return;
     const m = new Date(d.date).getMonth();
     if (m !== lastMonth) {
@@ -108,210 +352,40 @@ export function generateCatSVG(
       text-anchor="end" fill="${label}" font-family="monospace">${d}</text>` : ""
   ).join("\n");
 
-  // ── Character elements ───────────────────────────────────────────────────────
-  // Cat and rats are <text> emoji elements. JS moves them by setting x/y.
-  // Cat starts off-screen left. Rats start at grid corners.
-  const emojiSize = CELL;
+  // ── Characters with SMIL ─────────────────────────────────────────────────────
+  const wearyNormalAnim = smilWeary(wearyEvents, TOTAL_MS, `${pfx}-cat-normal`, false);
+  const wearyWearyAnim  = smilWeary(wearyEvents, TOTAL_MS, `${pfx}-cat-weary`,  true);
 
-  // Cat: two overlapping text elements (normal + weary), JS shows/hides
-  const catEl = `
-    <text id="${svgId}-cat-normal" x="${LEFT - STEP}" y="${TOP + 3 * STEP + CELL}"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">🐱</text>
-    <text id="${svgId}-cat-weary"  x="${LEFT - STEP}" y="${TOP + 3 * STEP + CELL}"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle" display="none">🙀</text>`;
+  const catNormalEl = `<text id="${pfx}-cat-normal"
+    font-size="${CELL}" dominant-baseline="middle" text-anchor="middle">🐱${
+    smilMove(pfx, catSteps, TOTAL_MS, getX, getY)}${wearyNormalAnim}</text>`;
 
-  // Two rats at different starting positions — JS controls position entirely
+  const catWearyEl = `<text id="${pfx}-cat-weary"
+    font-size="${CELL}" dominant-baseline="middle" text-anchor="middle" display="none">🙀${
+    smilMove(pfx, catSteps, TOTAL_MS, getX, getY)}${wearyWearyAnim}</text>`;
 
-  const ratsEl = `
-    <text id="${svgId}-rat0" x="-100" y="-100"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">🐹</text>
-    <text id="${svgId}-rat1" x="-100" y="-100"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">🐹</text>`;
+  const rat0El = `<text id="${pfx}-rat0"
+    font-size="${CELL}" dominant-baseline="middle" text-anchor="middle">🐹${
+    smilMove(pfx, rat0Steps, TOTAL_MS, getX, getY)}</text>`;
 
-  // ── Embed cell data as JSON for the JS engine ────────────────────────────────
-  // Format: [col, row, x_center, y_bottom, date, level]
-  // x_center and y_bottom are the emoji anchor points (text-anchor=middle, baseline=auto)
-  const cellsJSON = JSON.stringify(
-    cells.map(c => ({
-      c: c.col,
-      r: c.row,
-      x: c.x + CELL / 2,           // emoji x (text-anchor middle)
-      y: c.y + CELL,                // emoji y (text bottom)
-      d: c.date,
-      l: c.level,
-    }))
-  );
+  const rat1El = `<text id="${pfx}-rat1"
+    font-size="${CELL}" dominant-baseline="middle" text-anchor="middle">🐹${
+    smilMove(pfx, rat1Steps, TOTAL_MS, getX, getY)}</text>`;
 
-  // ── JS animation engine ──────────────────────────────────────────────────────
-  const script = `<script>//<![CDATA[
-(function() {
-  var PFX     = '${svgId}';   // unique prefix — prevents ID collision when two SVGs on same page
-  var CAT_MS   = 280;
-  var RAT_MS   = 360;
-  var WEARY_MS = 900;
-
-  var rawCells = ${cellsJSON};
-
-  // grid lookup: "col,row" -> cell object {c,r,x,y,d,l}
-  var grid = {};
-  var fishCells = [];
-  for (var i = 0; i < rawCells.length; i++) {
-    var cell = rawCells[i];
-    grid[cell.c + ',' + cell.r] = cell;
-    if (cell.l > 0) fishCells.push(cell);
-  }
-
-  // Fish visibility: date string -> true (fish visible)
-  // We key ONLY by date because that matches the SVG id "fish-DATE"
-  var fishDates = {};
-  for (var i = 0; i < fishCells.length; i++) fishDates[fishCells[i].d] = true;
-  var totalFish  = fishCells.length;
-  var eatenCount = 0;
-
-  function $(id) { return document.getElementById(PFX + '-' + id); }
-  function show(id) { var e=$(id); if(e) e.setAttribute('display','inline'); }
-  function hide(id) { var e=$(id); if(e) e.setAttribute('display','none');   }
-  function mvEl(id,x,y){ var e=$(id); if(e){e.setAttribute('x',x);e.setAttribute('y',y);} }
-
-  // 4 adjacent cells — coerce col/row to numbers to avoid string concat bug
-  function adj(col, row) {
-    var out = [];
-    var c = +col, r = +row;
-    var D = [[0,-1],[0,1],[-1,0],[1,0]];
-    for (var i = 0; i < D.length; i++) {
-      var nb = grid[(c+D[i][0]) + ',' + (r+D[i][1])];
-      if (nb) out.push(nb);
-    }
-    return out;
-  }
-  function rnd(a) { return a[Math.floor(Math.random()*a.length)]; }
-
-  // ── Cat ──
-  var cs = grid['0,3'] || grid['0,0'] || rawCells[0];
-  var catC = +cs.c, catR = +cs.r;
-  var wearyUntil = 0, catNextAt = 0;
-  var catPrevKey = '';
-  mvEl('cat-normal', cs.x, cs.y);
-  mvEl('cat-weary',  cs.x, cs.y);
-
-  function stepCat(now) {
-    // Weary face toggle
-    if (now < wearyUntil) { hide('cat-normal'); show('cat-weary'); }
-    else                   { show('cat-normal'); hide('cat-weary'); }
-
-    if (now < catNextAt) return;
-
-    // All fish eaten -> reset
-    if (eatenCount >= totalFish) {
-      for (var i = 0; i < fishCells.length; i++) {
-        fishDates[fishCells[i].d] = true;
-        show('fish-' + fishCells[i].d);
-      }
-      eatenCount = 0;
-      catNextAt  = now + 1200;
-      return;
-    }
-
-    // Pick next adjacent cell — prefer ones with fish, avoid backtracking
-    var options = adj(catC, catR);
-    if (!options.length) return;
-    // Filter out previous cell to prevent bouncing (unless no other option)
-    var forward = options.filter(function(n){ return (n.c+','+n.r) !== catPrevKey; });
-    var pool = forward.length ? forward : options;
-    var withFish = pool.filter(function(n){ return fishDates[n.d]; });
-    var target = rnd(withFish.length ? withFish : pool);
-
-    // Move one cell — record previous to prevent backtrack
-    catPrevKey = catC + ',' + catR;
-    catC = +target.c; catR = +target.r;
-    mvEl('cat-normal', target.x, target.y);
-    mvEl('cat-weary',  target.x, target.y);
-
-    // Only eat if this cell actually has a fish (level > 0 AND still in fishDates)
-    if (target.l > 0 && fishDates[target.d]) {
-      hide('fish-' + target.d);
-      delete fishDates[target.d];
-      eatenCount++;
-    }
-    catNextAt = now + CAT_MS;
-  }
-
-  // ── Rats — random walkers on grid ──
-  function makeRat(preferCol, preferRow, fallbackIdx) {
-    var sc = grid[preferCol + ',' + preferRow];
-    if (!sc) {
-      for (var rr = 0; rr < ${ROWS}; rr++) {
-        sc = grid[preferCol + ',' + rr];
-        if (sc) break;
-      }
-    }
-    if (!sc) sc = rawCells[fallbackIdx] || rawCells[0];
-    return { c: +sc.c, r: +sc.r, x: sc.x, y: sc.y, prevKey: '', nextAt: Infinity };
-  }
-
-  var rat0 = makeRat(Math.floor(${W}*0.25), 1, 20);
-  var rat1 = makeRat(Math.floor(${W}*0.70), 5, 60);
-
-  // Place rats correctly from the start — no jump
-  mvEl('rat0', rat0.x, rat0.y);
-  mvEl('rat1', rat1.x, rat1.y);
-
-  // Stagger their first move after the loop starts
-  function initRatTimers(now) {
-    rat0.nextAt = now + 500;
-    rat1.nextAt = now + 800;
-  }
-  var ratsInited = false;
-
-  function stepRat(rat, elId, speed, now) {
-    if (now < rat.nextAt) return;
-    var options = adj(rat.c, rat.r);
-    if (!options.length) return;
-    var forward = options.filter(function(n){ return (n.c+','+n.r) !== rat.prevKey; });
-    var target = rnd(forward.length ? forward : options);
-    rat.prevKey = rat.c + ',' + rat.r;
-    rat.c = +target.c; rat.r = +target.r;
-    mvEl(elId, target.x, target.y);
-    rat.nextAt = now + speed;
-    if (rat.c === catC && rat.r === catR) wearyUntil = now + WEARY_MS;
-  }
-
-  function loop(now) {
-    if (!ratsInited) { initRatTimers(now); ratsInited = true; }
-    stepCat(now);
-    stepRat(rat0, 'rat0', RAT_MS,       now);
-    stepRat(rat1, 'rat1', RAT_MS * 1.2, now);
-    requestAnimationFrame(loop);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function(){ requestAnimationFrame(loop); });
-  } else {
-    requestAnimationFrame(loop);
-  }
-})();
-//]]></script>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+  return `<svg xmlns="http://www.w3.org/2000/svg"
     width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
 
-  <!-- Background -->
   <rect width="${svgW}" height="${svgH}" rx="6" fill="${bg}" stroke="${border}" stroke-width="1"/>
 
-  <!-- Month labels -->
-  ${monthLabels.join("\n")}
-
-  <!-- Day labels -->
+  ${monthLabels.join("\n  ")}
   ${dayLabels}
 
-  <!-- Grid cells (fish-shaped SVG dots) -->
   ${gridSVG}
 
-  <!-- Characters -->
-  ${catEl}
-  ${ratsEl}
-
-  <!-- JS engine -->
-  ${script}
+  ${catNormalEl}
+  ${catWearyEl}
+  ${rat0El}
+  ${rat1El}
 
 </svg>`;
 }
