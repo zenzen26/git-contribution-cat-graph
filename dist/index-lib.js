@@ -1,21 +1,41 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateCatSVG = generateCatSVG;
-// Cell size — big enough to see emoji clearly
-const CELL = 14;
-const GAP = 3;
-const STEP = CELL + GAP; // 17px per grid step
-const TOP = 36;
-const LEFT = 44;
-const ROWS = 7;
-const LIGHT_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
-const DARK_COLORS = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"];
-// Draw a fish shape as inline SVG, centered at (cx, cy), sized to fit CELL×CELL
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/cat-animator.ts
+var cat_animator_exports = {};
+__export(cat_animator_exports, {
+  generateCatSVG: () => generateCatSVG
+});
+module.exports = __toCommonJS(cat_animator_exports);
+var CELL = 14;
+var GAP = 3;
+var STEP = CELL + GAP;
+var TOP = 36;
+var LEFT = 44;
+var ROWS = 7;
+var LIGHT_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+var DARK_COLORS = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"];
 function drawFish(cx, cy, color, id) {
-    const r = CELL * 0.42; // body half-width
-    const ry = CELL * 0.28; // body half-height
-    const tx = cx - r; // tail tip x
-    return `<g id="${id}">
+  const r = CELL * 0.42;
+  const ry = CELL * 0.28;
+  const tx = cx - r;
+  return `<g id="${id}">
     <ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${ry}" fill="${color}"/>
     <polygon points="${tx},${cy - ry * 0.9} ${tx},${cy + ry * 0.9} ${tx - r * 0.55},${cy}" fill="${color}" opacity="0.85"/>
     <path d="M${cx - r * 0.3},${cy - ry} Q${cx + r * 0.1},${cy - ry * 1.6} ${cx + r * 0.55},${cy - ry}" fill="${color}" opacity="0.65"/>
@@ -24,94 +44,85 @@ function drawFish(cx, cy, color, id) {
   </g>`;
 }
 function generateCatSVG(graph, username, theme = "github") {
-    const dark = theme === "github-dark";
-    const svgId = dark ? "ccg-dark" : "ccg-light"; // unique prefix per SVG instance
-    const colors = dark ? DARK_COLORS : LIGHT_COLORS;
-    const bg = dark ? "#0d1117" : "#ffffff";
-    const fg = dark ? "#c9d1d9" : "#24292f";
-    const border = dark ? "#30363d" : "#d0d7de";
-    const label = dark ? "#8b949e" : "#57606a";
-    const weeks = graph.weeks;
-    const W = weeks.length;
-    const svgW = LEFT + W * STEP + 20;
-    const svgH = TOP + ROWS * STEP + 48;
-    // ── Build cell list ──────────────────────────────────────────────────────────
-    const cells = [];
-    weeks.forEach((wk, wi) => {
-        wk.days.forEach((day, di) => {
-            cells.push({
-                col: wi, row: di,
-                x: LEFT + wi * STEP,
-                y: TOP + di * STEP,
-                level: day.level,
-                date: day.date,
-            });
-        });
+  const dark = theme === "github-dark";
+  const svgId = dark ? "ccg-dark" : "ccg-light";
+  const colors = dark ? DARK_COLORS : LIGHT_COLORS;
+  const bg = dark ? "#0d1117" : "#ffffff";
+  const fg = dark ? "#c9d1d9" : "#24292f";
+  const border = dark ? "#30363d" : "#d0d7de";
+  const label = dark ? "#8b949e" : "#57606a";
+  const weeks = graph.weeks;
+  const W = weeks.length;
+  const svgW = LEFT + W * STEP + 20;
+  const svgH = TOP + ROWS * STEP + 48;
+  const cells = [];
+  weeks.forEach((wk, wi) => {
+    wk.days.forEach((day, di) => {
+      cells.push({
+        col: wi,
+        row: di,
+        x: LEFT + wi * STEP,
+        y: TOP + di * STEP,
+        level: day.level,
+        date: day.date
+      });
     });
-    // ── Grid SVG ────────────────────────────────────────────────────────────────
-    // Each active cell: empty rect (background) + fish shape on top
-    // Fish disappear when eaten (JS sets display:none on the fish group)
-    // Empty cells: just the background rect
-    const gridSVG = cells.map(cell => {
-        const cx = cell.x + CELL / 2;
-        const cy = cell.y + CELL / 2;
-        const emptyFill = colors[0];
-        if (cell.level === 0) {
-            return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
+  });
+  const gridSVG = cells.map((cell) => {
+    const cx = cell.x + CELL / 2;
+    const cy = cell.y + CELL / 2;
+    const emptyFill = colors[0];
+    if (cell.level === 0) {
+      return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
         fill="${emptyFill}" stroke="${border}" stroke-width="0.3"/>`;
-        }
-        const fishColor = colors[Math.min(cell.level, colors.length - 1)];
-        return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
+    }
+    const fishColor = colors[Math.min(cell.level, colors.length - 1)];
+    return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
         fill="${emptyFill}" stroke="${border}" stroke-width="0.3"/>
       ${drawFish(cx, cy, fishColor, `${svgId}-fish-${cell.date}`)}`;
-    }).join("\n");
-    // ── Month / day labels ───────────────────────────────────────────────────────
-    const monthLabels = [];
-    let lastMonth = -1;
-    weeks.forEach((wk, wi) => {
-        const d = wk.days.find((d) => d.date);
-        if (!d)
-            return;
-        const m = new Date(d.date).getMonth();
-        if (m !== lastMonth) {
-            monthLabels.push(`<text x="${LEFT + wi * STEP}" y="${TOP - 8}" font-size="9"
+  }).join("\n");
+  const monthLabels = [];
+  let lastMonth = -1;
+  weeks.forEach((wk, wi) => {
+    const d = wk.days.find((d2) => d2.date);
+    if (!d) return;
+    const m = new Date(d.date).getMonth();
+    if (m !== lastMonth) {
+      monthLabels.push(`<text x="${LEFT + wi * STEP}" y="${TOP - 8}" font-size="9"
         fill="${label}" font-family="monospace">${new Date(d.date).toLocaleString("default", { month: "short" })}</text>`);
-            lastMonth = m;
-        }
-    });
-    const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""].map((d, i) => d ? `<text x="${LEFT - 4}" y="${TOP + i * STEP + CELL - 2}" font-size="8"
-      text-anchor="end" fill="${label}" font-family="monospace">${d}</text>` : "").join("\n");
-    // ── Character elements ───────────────────────────────────────────────────────
-    // Cat and rats are <text> emoji elements. JS moves them by setting x/y.
-    // Cat starts off-screen left. Rats start at grid corners.
-    const emojiSize = CELL;
-    // Cat: two overlapping text elements (normal + weary), JS shows/hides
-    const catEl = `
+      lastMonth = m;
+    }
+  });
+  const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""].map(
+    (d, i) => d ? `<text x="${LEFT - 4}" y="${TOP + i * STEP + CELL - 2}" font-size="8"
+      text-anchor="end" fill="${label}" font-family="monospace">${d}</text>` : ""
+  ).join("\n");
+  const emojiSize = CELL;
+  const catEl = `
     <text id="${svgId}-cat-normal" x="${LEFT - STEP}" y="${TOP + 3 * STEP + CELL}"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">🐱</text>
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">\u{1F431}</text>
     <text id="${svgId}-cat-weary"  x="${LEFT - STEP}" y="${TOP + 3 * STEP + CELL}"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle" display="none">🙀</text>`;
-    // Two rats at different starting positions — JS controls position entirely
-    const ratsEl = `
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle" display="none">\u{1F640}</text>`;
+  const ratsEl = `
     <text id="${svgId}-rat0" x="-100" y="-100"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">🐹</text>
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">\u{1F439}</text>
     <text id="${svgId}-rat1" x="-100" y="-100"
-      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">🐹</text>`;
-    // ── Embed cell data as JSON for the JS engine ────────────────────────────────
-    // Format: [col, row, x_center, y_bottom, date, level]
-    // x_center and y_bottom are the emoji anchor points (text-anchor=middle, baseline=auto)
-    const cellsJSON = JSON.stringify(cells.map(c => ({
-        c: c.col,
-        r: c.row,
-        x: c.x + CELL / 2, // emoji x (text-anchor middle)
-        y: c.y + CELL, // emoji y (text bottom)
-        d: c.date,
-        l: c.level,
-    })));
-    // ── JS animation engine ──────────────────────────────────────────────────────
-    const script = `<script>//<![CDATA[
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">\u{1F439}</text>`;
+  const cellsJSON = JSON.stringify(
+    cells.map((c) => ({
+      c: c.col,
+      r: c.row,
+      x: c.x + CELL / 2,
+      // emoji x (text-anchor middle)
+      y: c.y + CELL,
+      // emoji y (text bottom)
+      d: c.date,
+      l: c.level
+    }))
+  );
+  const script = `<script>//<![CDATA[
 (function() {
-  var PFX     = '${svgId}';   // unique prefix — prevents ID collision when two SVGs on same page
+  var PFX     = '${svgId}';   // unique prefix \u2014 prevents ID collision when two SVGs on same page
   var CAT_MS   = 280;
   var RAT_MS   = 360;
   var WEARY_MS = 900;
@@ -139,7 +150,7 @@ function generateCatSVG(graph, username, theme = "github") {
   function hide(id) { var e=$(id); if(e) e.setAttribute('display','none');   }
   function mvEl(id,x,y){ var e=$(id); if(e){e.setAttribute('x',x);e.setAttribute('y',y);} }
 
-  // 4 adjacent cells — coerce col/row to numbers to avoid string concat bug
+  // 4 adjacent cells \u2014 coerce col/row to numbers to avoid string concat bug
   function adj(col, row) {
     var out = [];
     var c = +col, r = +row;
@@ -152,7 +163,7 @@ function generateCatSVG(graph, username, theme = "github") {
   }
   function rnd(a) { return a[Math.floor(Math.random()*a.length)]; }
 
-  // ── Cat ──
+  // \u2500\u2500 Cat \u2500\u2500
   var cs = grid['0,3'] || grid['0,0'] || rawCells[0];
   var catC = +cs.c, catR = +cs.r;
   var wearyUntil = 0, catNextAt = 0;
@@ -178,7 +189,7 @@ function generateCatSVG(graph, username, theme = "github") {
       return;
     }
 
-    // Pick next adjacent cell — prefer ones with fish, avoid backtracking
+    // Pick next adjacent cell \u2014 prefer ones with fish, avoid backtracking
     var options = adj(catC, catR);
     if (!options.length) return;
     // Filter out previous cell to prevent bouncing (unless no other option)
@@ -187,7 +198,7 @@ function generateCatSVG(graph, username, theme = "github") {
     var withFish = pool.filter(function(n){ return fishDates[n.d]; });
     var target = rnd(withFish.length ? withFish : pool);
 
-    // Move one cell — record previous to prevent backtrack
+    // Move one cell \u2014 record previous to prevent backtrack
     catPrevKey = catC + ',' + catR;
     catC = +target.c; catR = +target.r;
     mvEl('cat-normal', target.x, target.y);
@@ -202,7 +213,7 @@ function generateCatSVG(graph, username, theme = "github") {
     catNextAt = now + CAT_MS;
   }
 
-  // ── Rats — random walkers on grid ──
+  // \u2500\u2500 Rats \u2014 random walkers on grid \u2500\u2500
   function makeRat(preferCol, preferRow, fallbackIdx) {
     var sc = grid[preferCol + ',' + preferRow];
     if (!sc) {
@@ -218,7 +229,7 @@ function generateCatSVG(graph, username, theme = "github") {
   var rat0 = makeRat(Math.floor(${W}*0.25), 1, 20);
   var rat1 = makeRat(Math.floor(${W}*0.70), 5, 60);
 
-  // Place rats correctly from the start — no jump
+  // Place rats correctly from the start \u2014 no jump
   mvEl('rat0', rat0.x, rat0.y);
   mvEl('rat1', rat1.x, rat1.y);
 
@@ -257,7 +268,7 @@ function generateCatSVG(graph, username, theme = "github") {
   }
 })();
 //]]></script>`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
     width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
 
   <!-- Background -->
@@ -281,4 +292,7 @@ function generateCatSVG(graph, username, theme = "github") {
 
 </svg>`;
 }
-//# sourceMappingURL=cat-animator.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  generateCatSVG
+});

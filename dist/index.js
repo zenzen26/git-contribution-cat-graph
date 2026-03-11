@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-#!/usr/bin/env node
 "use strict";
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -81,366 +80,274 @@ async function fetchContributionGraph(username, token) {
 }
 
 // src/cat-animator.ts
-var CELL_SIZE = 11;
-var CELL_GAP = 3;
-var STEP = CELL_SIZE + CELL_GAP;
-var GRID_TOP = 30;
-var GRID_LEFT = 40;
-var LEVEL_COLORS_LIGHT = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
-var LEVEL_COLORS_DARK = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"];
-function buildCatHead(state, facingLeft) {
-  const flip = facingLeft ? 'transform="scale(-1,1) translate(-20,0)"' : "";
-  const eyeOpen = `<circle cx="7" cy="9" r="1.5" fill="#222"/><circle cx="13" cy="9" r="1.5" fill="#222"/>`;
-  const eyeClosed = `<line x1="5.5" y1="9" x2="8.5" y2="9" stroke="#222" stroke-width="1.5" stroke-linecap="round"/><line x1="11.5" y1="9" x2="14.5" y2="9" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>`;
-  const eyeDead = `<text x="5" y="11" font-size="5" fill="#222">\xD7</text><text x="11" y="11" font-size="5" fill="#222">\xD7</text>`;
-  const eyeHalf = `<path d="M5.5 9 Q7 7.5 8.5 9" stroke="#222" fill="none" stroke-width="1.5"/><path d="M11.5 9 Q13 7.5 14.5 9" stroke="#222" fill="none" stroke-width="1.5"/>`;
-  let eyes = eyeOpen;
-  let mouth = `<path d="M8 13 Q10 15 12 13" stroke="#222" fill="none" stroke-width="1.2"/>`;
-  let extra = "";
-  switch (state) {
-    case "eating":
-      eyes = eyeOpen;
-      mouth = `<path d="M7 13 Q10 16 13 13" stroke="#222" fill="none" stroke-width="1.5"/><circle cx="10" cy="14.5" r="2" fill="#ffd700" opacity="0.6"/>`;
-      break;
-    case "sleeping":
-      eyes = eyeClosed;
-      mouth = `<path d="M8 13 Q10 14 12 13" stroke="#222" fill="none" stroke-width="1"/>`;
-      extra = `<text x="14" y="7" font-size="6" fill="#888">z</text>`;
-      break;
-    case "pooping":
-      eyes = eyeHalf;
-      mouth = `<path d="M8 13 Q10 12 12 13" stroke="#222" fill="none" stroke-width="1"/>`;
-      extra = `<text x="-4" y="22" font-size="8">\u{1F4A9}</text>`;
-      break;
-    case "dead":
-      eyes = eyeDead;
-      mouth = `<path d="M8 14 Q10 12 12 14" stroke="#222" fill="none" stroke-width="1"/>`;
-      break;
-    case "walking":
-    default:
-      break;
-  }
-  const whiskers = `
-    <line x1="1" y1="11" x2="7" y2="12" stroke="#aaa" stroke-width="0.7"/>
-    <line x1="1" y1="13" x2="7" y2="13" stroke="#aaa" stroke-width="0.7"/>
-    <line x1="13" y1="12" x2="19" y2="11" stroke="#aaa" stroke-width="0.7"/>
-    <line x1="13" y1="13" x2="19" y2="13" stroke="#aaa" stroke-width="0.7"/>
-  `;
-  return `
-    <g ${flip}>
-      <!-- Head -->
-      <ellipse cx="10" cy="11" rx="9" ry="8.5" fill="#FFD700" stroke="#E8C000" stroke-width="0.5"/>
-      <!-- Ears -->
-      <polygon points="2,5 0,0 6,3" fill="#FFD700" stroke="#E8C000" stroke-width="0.5"/>
-      <polygon points="2.5,4.5 1,1 5.5,3" fill="#FFB6C1"/>
-      <polygon points="18,5 20,0 14,3" fill="#FFD700" stroke="#E8C000" stroke-width="0.5"/>
-      <polygon points="17.5,4.5 19,1 14.5,3" fill="#FFB6C1"/>
-      <!-- Eyes -->
-      ${eyes}
-      <!-- Nose -->
-      <polygon points="10,12 9,13 11,13" fill="#FF9999"/>
-      ${whiskers}
-      <!-- Mouth -->
-      ${mouth}
-      ${extra}
-    </g>
-  `;
-}
-function buildRatHead(facingLeft) {
-  const flip = facingLeft ? 'transform="scale(-1,1) translate(-20,0)"' : "";
-  return `
-    <g ${flip}>
-      <!-- Body -->
-      <ellipse cx="10" cy="12" rx="8" ry="7" fill="#A0A0A0" stroke="#888" stroke-width="0.5"/>
-      <!-- Ears (big round) -->
-      <circle cx="4" cy="5" r="4" fill="#C0C0C0" stroke="#888" stroke-width="0.5"/>
-      <circle cx="4" cy="5" r="2.5" fill="#FFAAAA"/>
-      <circle cx="16" cy="5" r="4" fill="#C0C0C0" stroke="#888" stroke-width="0.5"/>
-      <circle cx="16" cy="5" r="2.5" fill="#FFAAAA"/>
-      <!-- Eyes -->
-      <circle cx="7" cy="10" r="1.5" fill="#FF4444"/>
-      <circle cx="13" cy="10" r="1.5" fill="#FF4444"/>
-      <circle cx="7.5" cy="9.5" r="0.5" fill="#fff"/>
-      <circle cx="13.5" cy="9.5" r="0.5" fill="#fff"/>
-      <!-- Snout -->
-      <ellipse cx="10" cy="14" rx="3" ry="2" fill="#CCC"/>
-      <circle cx="10" cy="13.5" r="1" fill="#FF9999"/>
-      <!-- Whiskers -->
-      <line x1="2" y1="13" x2="7" y2="14" stroke="#999" stroke-width="0.6"/>
-      <line x1="2" y1="15" x2="7" y2="14.5" stroke="#999" stroke-width="0.6"/>
-      <line x1="13" y1="14" x2="18" y2="13" stroke="#999" stroke-width="0.6"/>
-      <line x1="13" y1="14.5" x2="18" y2="15" stroke="#999" stroke-width="0.6"/>
-    </g>
-  `;
-}
-function buildFish(level, colors) {
-  const col = colors[level] ?? colors[1];
-  return `
-    <g>
-      <!-- Fish body -->
-      <ellipse cx="5.5" cy="5.5" rx="4.5" ry="3" fill="${col}" opacity="0.95"/>
-      <!-- Tail -->
-      <polygon points="0,3.5 0,7.5 -3,5.5" fill="${col}" opacity="0.8"/>
-      <!-- Eye -->
-      <circle cx="7" cy="5" r="1" fill="white"/>
-      <circle cx="7.2" cy="5" r="0.5" fill="#333"/>
-      <!-- Fin -->
-      <path d="M4 3 Q6 1 8 3" stroke="${col}" fill="none" stroke-width="0.8" opacity="0.7"/>
-    </g>
-  `;
-}
-function buildPoopEmoji() {
-  return `<text x="0" y="10" font-size="10" text-anchor="middle">\u{1F4A9}</text>`;
-}
-function planCatPath(cells) {
-  const active = cells.filter((c) => c.level > 0);
-  if (active.length === 0) return cells;
-  const sorted = [...active].sort(
-    (a, b) => a.weekIndex !== b.weekIndex ? a.weekIndex - b.weekIndex : a.dayIndex - b.dayIndex
-  );
-  return sorted;
+var CELL = 14;
+var GAP = 3;
+var STEP = CELL + GAP;
+var TOP = 36;
+var LEFT = 44;
+var ROWS = 7;
+var LIGHT_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+var DARK_COLORS = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"];
+function drawFish(cx, cy, color, id) {
+  const r = CELL * 0.42;
+  const ry = CELL * 0.28;
+  const tx = cx - r;
+  return `<g id="${id}">
+    <ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${ry}" fill="${color}"/>
+    <polygon points="${tx},${cy - ry * 0.9} ${tx},${cy + ry * 0.9} ${tx - r * 0.55},${cy}" fill="${color}" opacity="0.85"/>
+    <path d="M${cx - r * 0.3},${cy - ry} Q${cx + r * 0.1},${cy - ry * 1.6} ${cx + r * 0.55},${cy - ry}" fill="${color}" opacity="0.65"/>
+    <circle cx="${cx + r * 0.5}" cy="${cy - ry * 0.2}" r="${r * 0.18}" fill="white"/>
+    <circle cx="${cx + r * 0.55}" cy="${cy - ry * 0.2}" r="${r * 0.09}" fill="#222"/>
+  </g>`;
 }
 function generateCatSVG(graph, username, theme = "github") {
-  const isDark = theme === "github-dark";
-  const levelColors = isDark ? LEVEL_COLORS_DARK : LEVEL_COLORS_LIGHT;
-  const bgColor = isDark ? "#0d1117" : "#ffffff";
-  const textColor = isDark ? "#c9d1d9" : "#24292f";
-  const borderColor = isDark ? "#30363d" : "#d0d7de";
+  const dark = theme === "github-dark";
+  const svgId = dark ? "ccg-dark" : "ccg-light";
+  const colors = dark ? DARK_COLORS : LIGHT_COLORS;
+  const bg = dark ? "#0d1117" : "#ffffff";
+  const fg = dark ? "#c9d1d9" : "#24292f";
+  const border = dark ? "#30363d" : "#d0d7de";
+  const label = dark ? "#8b949e" : "#57606a";
   const weeks = graph.weeks;
-  const svgWidth = GRID_LEFT + weeks.length * STEP + 20;
-  const svgHeight = GRID_TOP + 7 * STEP + 60;
+  const W = weeks.length;
+  const svgW = LEFT + W * STEP + 20;
+  const svgH = TOP + ROWS * STEP + 48;
   const cells = [];
-  weeks.forEach((week, wi) => {
-    week.days.forEach((day, di) => {
+  weeks.forEach((wk, wi) => {
+    wk.days.forEach((day, di) => {
       cells.push({
-        weekIndex: wi,
-        dayIndex: di,
-        x: GRID_LEFT + wi * STEP,
-        y: GRID_TOP + di * STEP,
+        col: wi,
+        row: di,
+        x: LEFT + wi * STEP,
+        y: TOP + di * STEP,
         level: day.level,
-        date: day.date,
-        eaten: false
+        date: day.date
       });
     });
   });
-  const eatPath = planCatPath(cells);
-  const totalCells = eatPath.length;
-  const MOVE_DURATION = 400;
-  const EAT_DURATION = 300;
-  const POOP_DURATION = 800;
-  const SLEEP_DURATION = 3e3;
-  const RESET_PAUSE = 500;
-  const keyframes = [];
-  let time = 0;
-  let eatCount = 0;
-  let prevX = GRID_LEFT;
-  let prevY = GRID_TOP + 3 * STEP;
-  const poops = [];
-  keyframes.push({ t: 0, catX: prevX - STEP, catY: prevY, state: "walking", facingLeft: false, eatenUpTo: 0 });
-  for (let i = 0; i < eatPath.length; i++) {
-    const cell = eatPath[i];
-    const dx = cell.x - prevX;
-    time += MOVE_DURATION;
-    keyframes.push({
-      t: time,
-      catX: cell.x,
-      catY: cell.y,
-      state: "walking",
-      facingLeft: dx < 0,
-      eatenUpTo: eatCount
-    });
-    time += EAT_DURATION;
-    eatCount++;
-    keyframes.push({
-      t: time,
-      catX: cell.x,
-      catY: cell.y,
-      state: "eating",
-      facingLeft: dx < 0,
-      eatenUpTo: eatCount
-    });
-    if (eatCount % 3 === 0) {
-      const poopX = cell.x + (dx >= 0 ? -STEP : STEP);
-      const poopY = cell.y;
-      poops.push({ t: time, x: poopX, y: poopY });
-      time += POOP_DURATION;
-      keyframes.push({
-        t: time,
-        catX: cell.x,
-        catY: cell.y,
-        state: "pooping",
-        facingLeft: dx < 0,
-        eatenUpTo: eatCount,
-        poopAt: { x: poopX, y: poopY }
-      });
-      time += SLEEP_DURATION;
-      keyframes.push({
-        t: time,
-        catX: cell.x,
-        catY: cell.y,
-        state: "sleeping",
-        facingLeft: dx < 0,
-        eatenUpTo: eatCount
-      });
-      time += 300;
-      keyframes.push({
-        t: time,
-        catX: cell.x,
-        catY: cell.y,
-        state: "walking",
-        facingLeft: dx < 0,
-        eatenUpTo: eatCount
-      });
+  const gridSVG = cells.map((cell) => {
+    const cx = cell.x + CELL / 2;
+    const cy = cell.y + CELL / 2;
+    const emptyFill = colors[0];
+    if (cell.level === 0) {
+      return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
+        fill="${emptyFill}" stroke="${border}" stroke-width="0.3"/>`;
     }
-    prevX = cell.x;
-    prevY = cell.y;
-  }
-  time += 1e3;
-  const totalDuration = time + RESET_PAUSE;
-  const rat1Path = generateRatPath(weeks.length, 0, totalDuration);
-  const rat2Path = generateRatPath(weeks.length, 1, totalDuration);
-  const gridCellsSVG = cells.map((cell) => {
-    const isEatable = cell.level > 0;
-    const eatIndex = eatPath.findIndex((e) => e.date === cell.date);
-    if (!isEatable || eatIndex === -1) {
-      return `<rect x="${cell.x}" y="${cell.y}" width="${CELL_SIZE}" height="${CELL_SIZE}" rx="2" fill="${levelColors[0]}" stroke="${borderColor}" stroke-width="0.3"/>`;
+    const fishColor = colors[Math.min(cell.level, colors.length - 1)];
+    return `<rect x="${cell.x}" y="${cell.y}" width="${CELL}" height="${CELL}" rx="2"
+        fill="${emptyFill}" stroke="${border}" stroke-width="0.3"/>
+      ${drawFish(cx, cy, fishColor, `${svgId}-fish-${cell.date}`)}`;
+  }).join("\n");
+  const monthLabels = [];
+  let lastMonth = -1;
+  weeks.forEach((wk, wi) => {
+    const d = wk.days.find((d2) => d2.date);
+    if (!d) return;
+    const m = new Date(d.date).getMonth();
+    if (m !== lastMonth) {
+      monthLabels.push(`<text x="${LEFT + wi * STEP}" y="${TOP - 8}" font-size="9"
+        fill="${label}" font-family="monospace">${new Date(d.date).toLocaleString("default", { month: "short" })}</text>`);
+      lastMonth = m;
     }
-    const eatKF = keyframes.find((kf) => kf.eatenUpTo === eatIndex + 1 && kf.state === "eating");
-    const eatTimeS = eatKF ? (eatKF.t / 1e3).toFixed(2) : "9999";
-    return `
-      <g id="cell-${cell.date}">
-        <rect x="${cell.x}" y="${cell.y}" width="${CELL_SIZE}" height="${CELL_SIZE}" rx="2" fill="${levelColors[0]}" stroke="${borderColor}" stroke-width="0.3"/>
-        <g transform="translate(${cell.x + 1}, ${cell.y + 1})">
-          ${buildFish(cell.level, levelColors)}
-          <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;${(Number(eatTimeS) - 0.1 / totalDuration * 1e3).toFixed(4)};${eatTimeS};1" dur="${(totalDuration / 1e3).toFixed(2)}s" repeatCount="indefinite"/>
-        </g>
-      </g>
-    `;
-  }).join("\n");
-  const poopsSVG = poops.map((p, i) => {
-    const showT = (p.t / 1e3 / (totalDuration / 1e3)).toFixed(4);
-    const hideT = ((totalDuration - 100) / 1e3 / (totalDuration / 1e3)).toFixed(4);
-    return `
-      <g transform="translate(${p.x + 5}, ${p.y + 5})" opacity="0">
-        ${buildPoopEmoji()}
-        <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;${showT};${showT};${hideT};1" dur="${(totalDuration / 1e3).toFixed(2)}s" repeatCount="indefinite"/>
-      </g>
-    `;
-  }).join("\n");
-  const catSVG = buildCatAnimation(keyframes, totalDuration);
-  const ratsSVG = [rat1Path, rat2Path].map(
-    (path2, ri) => buildRatAnimation(path2, totalDuration, ri)
-  ).join("\n");
-  const monthLabels = buildMonthLabels(weeks, isDark ? "#8b949e" : "#57606a");
+  });
   const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""].map(
-    (d, i) => d ? `<text x="${GRID_LEFT - 5}" y="${GRID_TOP + i * STEP + 9}" font-size="8" text-anchor="end" fill="${isDark ? "#8b949e" : "#57606a"}" font-family="monospace">${d}</text>` : ""
+    (d, i) => d ? `<text x="${LEFT - 4}" y="${TOP + i * STEP + CELL - 2}" font-size="8"
+      text-anchor="end" fill="${label}" font-family="monospace">${d}</text>` : ""
   ).join("\n");
-  const title = `<text x="${svgWidth / 2}" y="16" font-size="12" text-anchor="middle" fill="${textColor}" font-family="monospace" font-weight="bold">\u{1F431} ${username}'s contribution cat</text>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
-  <defs>
-    <style>
-      .cat-head { font-family: monospace; }
-    </style>
-  </defs>
+  const emojiSize = CELL;
+  const catEl = `
+    <text id="${svgId}-cat-normal" x="${LEFT - STEP}" y="${TOP + 3 * STEP + CELL}"
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">\u{1F431}</text>
+    <text id="${svgId}-cat-weary"  x="${LEFT - STEP}" y="${TOP + 3 * STEP + CELL}"
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle" display="none">\u{1F640}</text>`;
+  const ratsEl = `
+    <text id="${svgId}-rat0" x="-100" y="-100"
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">\u{1F439}</text>
+    <text id="${svgId}-rat1" x="-100" y="-100"
+      font-size="${emojiSize}" dominant-baseline="auto" text-anchor="middle">\u{1F439}</text>`;
+  const cellsJSON = JSON.stringify(
+    cells.map((c) => ({
+      c: c.col,
+      r: c.row,
+      x: c.x + CELL / 2,
+      // emoji x (text-anchor middle)
+      y: c.y + CELL,
+      // emoji y (text bottom)
+      d: c.date,
+      l: c.level
+    }))
+  );
+  const script = `<script>//<![CDATA[
+(function() {
+  var PFX     = '${svgId}';   // unique prefix \u2014 prevents ID collision when two SVGs on same page
+  var CAT_MS   = 280;
+  var RAT_MS   = 360;
+  var WEARY_MS = 900;
+
+  var rawCells = ${cellsJSON};
+
+  // grid lookup: "col,row" -> cell object {c,r,x,y,d,l}
+  var grid = {};
+  var fishCells = [];
+  for (var i = 0; i < rawCells.length; i++) {
+    var cell = rawCells[i];
+    grid[cell.c + ',' + cell.r] = cell;
+    if (cell.l > 0) fishCells.push(cell);
+  }
+
+  // Fish visibility: date string -> true (fish visible)
+  // We key ONLY by date because that matches the SVG id "fish-DATE"
+  var fishDates = {};
+  for (var i = 0; i < fishCells.length; i++) fishDates[fishCells[i].d] = true;
+  var totalFish  = fishCells.length;
+  var eatenCount = 0;
+
+  function $(id) { return document.getElementById(PFX + '-' + id); }
+  function show(id) { var e=$(id); if(e) e.setAttribute('display','inline'); }
+  function hide(id) { var e=$(id); if(e) e.setAttribute('display','none');   }
+  function mvEl(id,x,y){ var e=$(id); if(e){e.setAttribute('x',x);e.setAttribute('y',y);} }
+
+  // 4 adjacent cells \u2014 coerce col/row to numbers to avoid string concat bug
+  function adj(col, row) {
+    var out = [];
+    var c = +col, r = +row;
+    var D = [[0,-1],[0,1],[-1,0],[1,0]];
+    for (var i = 0; i < D.length; i++) {
+      var nb = grid[(c+D[i][0]) + ',' + (r+D[i][1])];
+      if (nb) out.push(nb);
+    }
+    return out;
+  }
+  function rnd(a) { return a[Math.floor(Math.random()*a.length)]; }
+
+  // \u2500\u2500 Cat \u2500\u2500
+  var cs = grid['0,3'] || grid['0,0'] || rawCells[0];
+  var catC = +cs.c, catR = +cs.r;
+  var wearyUntil = 0, catNextAt = 0;
+  var catPrevKey = '';
+  mvEl('cat-normal', cs.x, cs.y);
+  mvEl('cat-weary',  cs.x, cs.y);
+
+  function stepCat(now) {
+    // Weary face toggle
+    if (now < wearyUntil) { hide('cat-normal'); show('cat-weary'); }
+    else                   { show('cat-normal'); hide('cat-weary'); }
+
+    if (now < catNextAt) return;
+
+    // All fish eaten -> reset
+    if (eatenCount >= totalFish) {
+      for (var i = 0; i < fishCells.length; i++) {
+        fishDates[fishCells[i].d] = true;
+        show('fish-' + fishCells[i].d);
+      }
+      eatenCount = 0;
+      catNextAt  = now + 1200;
+      return;
+    }
+
+    // Pick next adjacent cell \u2014 prefer ones with fish, avoid backtracking
+    var options = adj(catC, catR);
+    if (!options.length) return;
+    // Filter out previous cell to prevent bouncing (unless no other option)
+    var forward = options.filter(function(n){ return (n.c+','+n.r) !== catPrevKey; });
+    var pool = forward.length ? forward : options;
+    var withFish = pool.filter(function(n){ return fishDates[n.d]; });
+    var target = rnd(withFish.length ? withFish : pool);
+
+    // Move one cell \u2014 record previous to prevent backtrack
+    catPrevKey = catC + ',' + catR;
+    catC = +target.c; catR = +target.r;
+    mvEl('cat-normal', target.x, target.y);
+    mvEl('cat-weary',  target.x, target.y);
+
+    // Only eat if this cell actually has a fish (level > 0 AND still in fishDates)
+    if (target.l > 0 && fishDates[target.d]) {
+      hide('fish-' + target.d);
+      delete fishDates[target.d];
+      eatenCount++;
+    }
+    catNextAt = now + CAT_MS;
+  }
+
+  // \u2500\u2500 Rats \u2014 random walkers on grid \u2500\u2500
+  function makeRat(preferCol, preferRow, fallbackIdx) {
+    var sc = grid[preferCol + ',' + preferRow];
+    if (!sc) {
+      for (var rr = 0; rr < ${ROWS}; rr++) {
+        sc = grid[preferCol + ',' + rr];
+        if (sc) break;
+      }
+    }
+    if (!sc) sc = rawCells[fallbackIdx] || rawCells[0];
+    return { c: +sc.c, r: +sc.r, x: sc.x, y: sc.y, prevKey: '', nextAt: Infinity };
+  }
+
+  var rat0 = makeRat(Math.floor(${W}*0.25), 1, 20);
+  var rat1 = makeRat(Math.floor(${W}*0.70), 5, 60);
+
+  // Place rats correctly from the start \u2014 no jump
+  mvEl('rat0', rat0.x, rat0.y);
+  mvEl('rat1', rat1.x, rat1.y);
+
+  // Stagger their first move after the loop starts
+  function initRatTimers(now) {
+    rat0.nextAt = now + 500;
+    rat1.nextAt = now + 800;
+  }
+  var ratsInited = false;
+
+  function stepRat(rat, elId, speed, now) {
+    if (now < rat.nextAt) return;
+    var options = adj(rat.c, rat.r);
+    if (!options.length) return;
+    var forward = options.filter(function(n){ return (n.c+','+n.r) !== rat.prevKey; });
+    var target = rnd(forward.length ? forward : options);
+    rat.prevKey = rat.c + ',' + rat.r;
+    rat.c = +target.c; rat.r = +target.r;
+    mvEl(elId, target.x, target.y);
+    rat.nextAt = now + speed;
+    if (rat.c === catC && rat.r === catR) wearyUntil = now + WEARY_MS;
+  }
+
+  function loop(now) {
+    if (!ratsInited) { initRatTimers(now); ratsInited = true; }
+    stepCat(now);
+    stepRat(rat0, 'rat0', RAT_MS,       now);
+    stepRat(rat1, 'rat1', RAT_MS * 1.2, now);
+    requestAnimationFrame(loop);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ requestAnimationFrame(loop); });
+  } else {
+    requestAnimationFrame(loop);
+  }
+})();
+//]]></script>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+    width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
 
   <!-- Background -->
-  <rect width="${svgWidth}" height="${svgHeight}" rx="6" fill="${bgColor}" stroke="${borderColor}" stroke-width="1"/>
-
-  <!-- Title -->
-  ${title}
+  <rect width="${svgW}" height="${svgH}" rx="6" fill="${bg}" stroke="${border}" stroke-width="1"/>
 
   <!-- Month labels -->
-  ${monthLabels}
+  ${monthLabels.join("\n")}
 
   <!-- Day labels -->
   ${dayLabels}
 
-  <!-- Grid cells (fish shaped contribution dots) -->
-  ${gridCellsSVG}
+  <!-- Grid cells (fish-shaped SVG dots) -->
+  ${gridSVG}
 
-  <!-- Poop markers -->
-  ${poopsSVG}
+  <!-- Characters -->
+  ${catEl}
+  ${ratsEl}
 
-  <!-- Rats -->
-  ${ratsSVG}
+  <!-- JS engine -->
+  ${script}
 
-  <!-- Cat -->
-  ${catSVG}
 </svg>`;
-}
-function buildMonthLabels(weeks, color) {
-  const labels = [];
-  let lastMonth = -1;
-  weeks.forEach((week, wi) => {
-    const firstDay = week.days.find((d) => d.date);
-    if (!firstDay) return;
-    const month = new Date(firstDay.date).getMonth();
-    if (month !== lastMonth) {
-      const monthName = new Date(firstDay.date).toLocaleString("default", { month: "short" });
-      labels.push(`<text x="${GRID_LEFT + wi * STEP}" y="${GRID_TOP - 5}" font-size="9" fill="${color}" font-family="monospace">${monthName}</text>`);
-      lastMonth = month;
-    }
-  });
-  return labels.join("\n");
-}
-function buildCatAnimation(keyframes, totalDuration) {
-  const durS = (totalDuration / 1e3).toFixed(2);
-  const xKT = keyframes.map((kf) => (kf.t / totalDuration).toFixed(4)).join(";");
-  const xV = keyframes.map((kf) => kf.catX).join(";");
-  const yV = keyframes.map((kf) => kf.catY).join(";");
-  const states = ["walking", "eating", "pooping", "sleeping", "dead"];
-  const stateAnimations = states.map((state) => {
-    const opacities = keyframes.map((kf) => kf.state === state ? "1" : "0").join(";");
-    return `
-      <g id="cat-state-${state}" opacity="0">
-        ${buildCatHead(state, false)}
-        <animate attributeName="opacity" values="${opacities}" keyTimes="${xKT}" dur="${durS}s" repeatCount="indefinite" calcMode="discrete"/>
-      </g>`;
-  }).join("\n");
-  const flipValues = keyframes.map((kf) => kf.facingLeft ? "scale(-1,1) translate(-20,0)" : "scale(1,1)").join(";");
-  return `
-  <g id="cat">
-    <animateTransform attributeName="transform" type="translate"
-      values="${keyframes.map((kf) => `${kf.catX},${kf.catY}`).join(";")}"
-      keyTimes="${xKT}"
-      dur="${durS}s"
-      repeatCount="indefinite"
-      calcMode="linear"/>
-    <g>
-      ${stateAnimations}
-    </g>
-  </g>`;
-}
-function generateRatPath(weekCount, seed, totalDuration) {
-  const frames = [];
-  const maxX = GRID_LEFT + weekCount * STEP;
-  const maxY = GRID_TOP + 6 * STEP;
-  const points = 20;
-  for (let i = 0; i <= points; i++) {
-    const t = i / points * totalDuration;
-    const phase = i / points * Math.PI * 4 + seed * Math.PI;
-    const x = GRID_LEFT + Math.abs(Math.sin(phase * 0.7 + seed)) * (weekCount - 4) * STEP;
-    const y = GRID_TOP + (Math.sin(phase + seed * 2) + 1) / 2 * 5 * STEP;
-    const prevX = i > 0 ? GRID_LEFT + Math.abs(Math.sin((i - 1) / points * Math.PI * 4 * 0.7 + seed * 0.7)) * (weekCount - 4) * STEP : x;
-    frames.push({ t, x, y, facingLeft: x < prevX });
-  }
-  return frames;
-}
-function buildRatAnimation(path2, totalDuration, index) {
-  const durS = (totalDuration / 1e3).toFixed(2);
-  const xKT = path2.map((f) => (f.t / totalDuration).toFixed(4)).join(";");
-  const coords = path2.map((f) => `${f.x},${f.y}`).join(";");
-  const flips = path2.map((f) => f.facingLeft ? "scale(-1,1) translate(-20,0)" : "scale(1,1)").join(";");
-  return `
-  <g id="rat-${index}">
-    <animateTransform attributeName="transform" type="translate"
-      values="${coords}"
-      keyTimes="${xKT}"
-      dur="${durS}s"
-      repeatCount="indefinite"
-      calcMode="linear"/>
-    ${buildRatHead(false)}
-  </g>`;
 }
 
 // src/index.ts

@@ -1,14 +1,9 @@
-// scripts/bundle.js
-// Bundles the entire project into a single precompiled JS file
-// so users don't need to npm install anything when using the GitHub Action.
-
 const esbuild = require("esbuild");
 const fs = require("fs");
 const path = require("path");
 
 async function bundle() {
-  console.log("📦 Bundling with esbuild...");
-
+  // 1. CLI bundle (for GitHub Actions — no shebang duplication)
   await esbuild.build({
     entryPoints: ["src/index.ts"],
     bundle: true,
@@ -17,20 +12,27 @@ async function bundle() {
     outfile: "dist/index.js",
     minify: false,
     sourcemap: false,
-    banner: {
-      js: "#!/usr/bin/env node",
-    },
   });
 
-  // Make it executable
-  const filePath = path.resolve("dist/index.js");
-  fs.chmodSync(filePath, "755");
+  // Prepend shebang manually (avoids duplicate from source file)
+  const cli = fs.readFileSync("dist/index.js", "utf8").replace(/^#!.*\n/, "");
+  fs.writeFileSync("dist/index.js", "#!/usr/bin/env node\n" + cli);
+  fs.chmodSync("dist/index.js", "755");
 
-  console.log("✅ Bundle complete: dist/index.js");
-  console.log(`   Size: ${(fs.statSync(filePath).size / 1024).toFixed(1)} KB`);
+  // 2. Library bundle (for local preview — exports generateCatSVG)
+  await esbuild.build({
+    entryPoints: ["src/cat-animator.ts"],
+    bundle: true,
+    platform: "node",
+    target: "node20",
+    outfile: "dist/index-lib.js",
+    format: "cjs",
+    minify: false,
+    sourcemap: false,
+  });
+
+  console.log("✅ dist/index.js     (CLI bundle)");
+  console.log("✅ dist/index-lib.js (preview lib)");
 }
 
-bundle().catch(err => {
-  console.error("Bundle failed:", err);
-  process.exit(1);
-});
+bundle().catch(err => { console.error(err); process.exit(1); });
