@@ -1,0 +1,35 @@
+{
+  "name": "git-contribution-cat-graph",
+  "version": "1.0.0",
+  "description": "🐱🐟 Turn your GitHub contribution graph into an animated cat eating fish! Easy to integrate into your profile with GitHub Actions.",
+  "main": "dist/index.js",
+  "bin": {
+    "git-contribution-cat-graph": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/bundle.js",
+    "build:tsc": "tsc",
+    "dev": "ts-node src/index.ts",
+    "generate": "node dist/index.js"
+  },
+  "keywords": [
+    "github",
+    "profile",
+    "readme",
+    "contribution",
+    "cat",
+    "animation",
+    "svg",
+    "github-action"
+  ],
+  "author": "zenzen26",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "esbuild": "^0.23.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

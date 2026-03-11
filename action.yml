@@ -1,0 +1,52 @@
+name: "Generate Cat Contribution Graph"
+description: "🐱🐟 Generate an animated cat eating your GitHub contribution graph as fish"
+author: "zenzen26"
+
+branding:
+  icon: "heart"
+  color: "yellow"
+
+inputs:
+  github_user_name:
+    description: "GitHub username to generate graph for"
+    required: true
+  github_token:
+    description: "GitHub token for API access"
+    required: true
+    default: ${{ github.token }}
+  theme:
+    description: "Theme: 'github' (light) or 'github-dark'"
+    required: false
+    default: "github"
+  output_dir:
+    description: "Output directory for generated SVGs"
+    required: false
+    default: "dist"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js 24
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+
+    - name: Generate cat contribution graph (light theme)
+      shell: bash
+      run: |
+        node ${{ github.action_path }}/dist/index.js \
+          --username "${{ inputs.github_user_name }}" \
+          --theme "github" \
+          --output "${{ inputs.output_dir }}/cat-contribution-graph.svg"
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    - name: Generate cat contribution graph (dark theme)
+      shell: bash
+      run: |
+        node ${{ github.action_path }}/dist/index.js \
+          --username "${{ inputs.github_user_name }}" \
+          --theme "github-dark" \
+          --output "${{ inputs.output_dir }}/cat-contribution-graph-dark.svg"
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
