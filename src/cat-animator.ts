@@ -1,4 +1,4 @@
-import { ContributionGraph, ContributionDay } from "./contribution-graph";
+import { ContributionGraph, ContributionDay } from "../contribution-graph";
 
 export type Theme = "github" | "github-dark";
 
