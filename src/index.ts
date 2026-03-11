@@ -2,8 +2,8 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { fetchContributionGraph } from "../contribution-graph";
-import { generateCatSVG, Theme } from "../cat-animator";
+import { fetchContributionGraph } from "./contribution-graph";
+import { generateCatSVG, Theme } from "./cat-animator";
 
 async function main() {
   const args = process.argv.slice(2);
