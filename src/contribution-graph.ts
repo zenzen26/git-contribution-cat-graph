@@ -49,7 +49,7 @@ export async function fetchContributionGraph(
     throw new Error(`GitHub API error: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   const calendar =
     data.data.user.contributionsCollection.contributionCalendar;
 

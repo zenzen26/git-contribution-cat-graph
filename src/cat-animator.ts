@@ -1,4 +1,4 @@
-import { ContributionGraph, ContributionDay } from "../contribution-graph";
+import { ContributionGraph, ContributionDay } from "./contribution-graph";
 
 export type Theme = "github" | "github-dark";
 
@@ -190,8 +190,8 @@ export function generateCatSVG(
 
   // Build cell data
   const cells: Cell[] = [];
-  weeks.forEach((week, wi) => {
-    week.days.forEach((day, di) => {
+  weeks.forEach((week: ContributionGraph["weeks"][0], wi: number) => {
+    week.days.forEach((day: ContributionDay, di: number) => {
       cells.push({
         weekIndex: wi,
         dayIndex: di,
@@ -417,8 +417,8 @@ export function generateCatSVG(
 function buildMonthLabels(weeks: ContributionGraph["weeks"], color: string): string {
   const labels: string[] = [];
   let lastMonth = -1;
-  weeks.forEach((week, wi) => {
-    const firstDay = week.days.find(d => d.date);
+  weeks.forEach((week: ContributionGraph["weeks"][0], wi: number) => {
+    const firstDay = week.days.find((d: ContributionDay) => d.date);
     if (!firstDay) return;
     const month = new Date(firstDay.date).getMonth();
     if (month !== lastMonth) {
