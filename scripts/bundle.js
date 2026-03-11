@@ -17,9 +17,6 @@ async function bundle() {
     outfile: "dist/index.js",
     minify: false,
     sourcemap: false,
-    banner: {
-      js: "#!/usr/bin/env node",
-    },
   });
 
   // Make it executable
